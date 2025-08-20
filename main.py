@@ -1,60 +1,79 @@
-# Import necessary libraries
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import json
 import os
+from flask import Flask, request, jsonify
+from flask_cors import CORS # Handles Cross-Origin Resource Sharing
 
-# Create a Flask web server instance
 app = Flask(__name__)
+CORS(app) # Enables CORS for all routes
 
-# Apply CORS to the app to allow cross-origin requests
-CORS(app)
-
-# A simple in-memory list to act as a database for appointments
-# In a real-world application, you would use a proper database (e.g., Firestore, MySQL, etc.)
-appointments = []
-
-@app.route('/book_appointment', methods=['POST'])
+@app.route('/bookAppointment', methods=['POST'])
 def book_appointment():
     """
-    Handles a POST request to book a new appointment.
+    Handles POST requests to book an appointment.
+    This function acts as the webhook for the `bookAppointment` tool.
     """
-    # Check if the request body is valid JSON
+    # Log the incoming request to the console for debugging
+    print(f"Received request with headers: {request.headers}")
+    print(f"Received request body: {request.json}")
+
+    # Check if the request has JSON data
     if not request.json:
-        return jsonify({"error": "Invalid request body"}), 400
+        return jsonify({"success": False, "message": "Missing JSON data in request."}), 400
 
-    # Extract appointment data from the request body
-    data = request.json
-    patient_name = data.get("patient_name")
-    appointment_date = data.get("appointment_date")
-    appointment_time = data.get("appointment_time")
-    contact_number = data.get("contact_number")
-    reason_for_visit = data.get("reason_for_visit")
+    # Extract required parameters from the request body
+    symptoms = request.json.get('symptoms')
+    doctor_type = request.json.get('doctorType')
 
-    # Perform basic validation on the incoming data
-    if not all([patient_name, appointment_date, appointment_time, contact_number, reason_for_visit]):
-        return jsonify({"error": "Missing required fields"}), 400
+    # Basic input validation as specified in the OpenAPI schema
+    if not symptoms or not doctor_type:
+        return jsonify({
+            "success": False,
+            "message": "Missing required parameters.",
+            "errorMessage": "Symptoms and doctorType are required."
+        }), 400
 
-    # Create a new appointment dictionary
-    new_appointment = {
-        "patient_name": patient_name,
-        "appointment_date": appointment_date,
-        "appointment_time": appointment_time,
-        "contact_number": contact_number,
-        "reason_for_visit": reason_for_visit
-    }
+    try:
+        # --- Start of simulated business logic ---
+        # In a real-world scenario, you would connect to a database,
+        # an external API, or another service here to book the appointment.
 
-    # Add the new appointment to our in-memory list
-    appointments.append(new_appointment)
+        # Generate a unique confirmation number
+        confirmation_number = os.urandom(4).hex().upper()
+        
+        # Determine a simulated booking time based on doctor type
+        if doctor_type == "General Practitioner":
+            booked_time = "Tomorrow, 10:00 AM"
+        elif doctor_type == "Dermatologist":
+            booked_time = "In 2 days, 2:30 PM"
+        else:
+            booked_time = "In 5 days, 11:00 AM"
+        
+        # --- End of simulated business logic ---
+        
+        # Prepare the successful response
+        response = {
+            "success": True,
+            "message": f"Appointment for {symptoms} with a {doctor_type} has been successfully booked for {booked_time}.",
+            "data": {
+                "confirmationNumber": confirmation_number,
+                "bookedSymptoms": symptoms,
+                "bookedDoctorType": doctor_type,
+                "bookedTime": booked_time
+            }
+        }
+        
+        return jsonify(response), 200
 
-    # Return a success response
-    return jsonify({
-        "message": "Appointment booked successfully!",
-        "appointment": new_appointment
-    }), 201
+    except Exception as e:
+        # Handle unexpected errors
+        print(f"An unexpected error occurred: {e}")
+        return jsonify({
+            "success": False,
+            "message": "An unexpected error occurred. Please try again.",
+            "errorMessage": str(e)
+        }), 500
 
-# Run the application
 if __name__ == '__main__':
-    # Use the PORT environment variable provided by Cloud Run
+    # Cloud Run provides the PORT environment variable.
+    # We use 8080 for local testing if the PORT variable isn't set.
     port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(debug=True, host='0.0.0.0', port=port)
